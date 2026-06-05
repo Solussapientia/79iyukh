@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a2540" />
+  <title>Charge a Card</title>
+  <style>
+    :root {
+      --bg: #0a2540;
+      --card: #ffffff;
+      --accent: #635bff;
+      --accent-dark: #4b45c6;
+      --text: #1a1f36;
+      --muted: #697386;
+      --ok: #1a8245;
+      --err: #cd3d64;
+      --line: #e3e8ee;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(160deg, #0a2540 0%, #1a1f36 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 440px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    .badge { display: inline-flex; align-items: center; gap: 7px; }
+    .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .badge.connected { background: #e3f5ea; color: var(--ok); }
+    .badge.connecting { background: #f6f9fc; color: var(--muted); }
+    .badge.offline { background: #fde7ed; color: var(--err); }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 24px 22px 28px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+    .amount-wrap {
+      display: flex;
+      align-items: center;
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 16px;
+      transition: border-color .15s;
+    }
+    .amount-wrap:focus-within { border-color: var(--accent); }
+    .symbol { font-size: 34px; font-weight: 700; color: var(--text); margin-right: 6px; }
+    #amount {
+      border: none;
+      outline: none;
+      font-size: 40px;
+      font-weight: 700;
+      width: 100%;
+      color: var(--text);
+      background: transparent;
+      min-width: 0;
+    }
+    select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      margin-bottom: 20px;
+      appearance: none;
+    }
+    .field { margin-top: 20px; }
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s, transform .05s;
+    }
+    button:active { transform: scale(0.99); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-primary:disabled { background: #b9b6f5; cursor: not-allowed; }
+    .btn-cancel {
+      background: #fff;
+      color: var(--err);
+      border: 2px solid var(--line);
+      margin-top: 10px;
+    }
+    .status {
+      margin-top: 22px;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+    }
+    .status.show { display: flex; }
+    .status.info { background: #f6f9fc; color: var(--text); }
+    .status.ok { background: #e3f5ea; color: var(--ok); }
+    .status.err { background: #fdebf1; color: var(--err); }
+    .spinner {
+      width: 20px; height: 20px;
+      border: 3px solid rgba(99,91,255,0.25);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .key {
+      background: #f6f9fc;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 18px 0;
+      font-size: 22px;
+      font-weight: 600;
+      text-align: center;
+      user-select: none;
+      cursor: pointer;
+    }
+    .key:active { background: #e6ebf1; }
+    .hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <span id="modeBadge" class="badge connecting">Connecting…</span>
+    <div class="card">
+      <label for="amount">Amount</label>
+      <div class="amount-wrap">
+        <span class="symbol" id="symbol">$</span>
+        <input id="amount" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" />
+      </div>
+
+      <div class="keypad" id="keypad">
+        <div class="key" data-k="1">1</div>
+        <div class="key" data-k="2">2</div>
+        <div class="key" data-k="3">3</div>
+        <div class="key" data-k="4">4</div>
+        <div class="key" data-k="5">5</div>
+        <div class="key" data-k="6">6</div>
+        <div class="key" data-k="7">7</div>
+        <div class="key" data-k="8">8</div>
+        <div class="key" data-k="9">9</div>
+        <div class="key" data-k=".">.</div>
+        <div class="key" data-k="0">0</div>
+        <div class="key" data-k="back">⌫</div>
+      </div>
+
+      <div class="field">
+        <button id="chargeBtn" class="btn-primary">Charge</button>
+        <button id="cancelBtn" class="btn-cancel" style="display:none;">Cancel payment</button>
+      </div>
+
+      <div id="status" class="status">
+        <div id="statusIcon"></div>
+        <div id="statusText"></div>
+      </div>
+    </div>
+    <p class="hint">Powered by Stripe Terminal · server-driven</p>
+  </div>
+
+  <script>
+    const els = {
+      amount: document.getElementById("amount"),
+      symbol: document.getElementById("symbol"),
+      keypad: document.getElementById("keypad"),
+      chargeBtn: document.getElementById("chargeBtn"),
+      cancelBtn: document.getElementById("cancelBtn"),
+      status: document.getElementById("status"),
+      statusIcon: document.getElementById("statusIcon"),
+      statusText: document.getElementById("statusText"),
+      modeBadge: document.getElementById("modeBadge"),
+    };
+
+    let config = { currency: "usd", livemode: false, defaultReaderId: "" };
+    let poller = null;
+    let activeReaderId = null;
+
+    const CURRENCY_SYMBOLS = { usd: "$", gbp: "£", eur: "€", cad: "$", aud: "$", jpy: "¥" };
+
+    function setStatus(kind, text, spinning) {
+      els.status.className = "status show " + kind;
+      els.statusIcon.innerHTML = spinning ? '<div class="spinner"></div>' : "";
+      els.statusText.textContent = text;
+    }
+    function hideStatus() { els.status.className = "status"; }
+
+    function setBadge(kind, text) {
+      els.modeBadge.className = "badge " + kind;
+      els.modeBadge.textContent = text;
+    }
+
+    async function init() {
+      try {
+        config = await (await fetch("/api/config")).json();
+      } catch (e) {}
+      els.symbol.textContent = CURRENCY_SYMBOLS[config.currency] || "";
+      checkConnection();
+      setInterval(checkConnection, 10000);
+    }
+
+    // Reflect the reader's live connection status in the top badge.
+    async function checkConnection() {
+      try {
+        const data = await (await fetch("/api/readers")).json();
+        const readers = data.readers || [];
+        const reader =
+          readers.find((r) => r.id === config.defaultReaderId) ||
+          readers.find((r) => r.deviceType && r.deviceType.indexOf("s7") !== -1) ||
+          readers[0];
+        if (reader && reader.status === "online") {
+          setBadge("connected", "Connected");
+        } else {
+          setBadge("offline", "Reader offline");
+        }
+      } catch (e) {
+        setBadge("offline", "Disconnected");
+      }
+    }
+
+    // --- amount keypad handling ---
+    els.keypad.addEventListener("click", (e) => {
+      const key = e.target.getAttribute("data-k");
+      if (!key) return;
+      let v = els.amount.value;
+      if (key === "back") {
+        v = v.slice(0, -1);
+      } else if (key === ".") {
+        if (!v.includes(".")) v = v === "" ? "0." : v + ".";
+      } else {
+        // limit to 2 decimal places
+        const dot = v.indexOf(".");
+        if (dot !== -1 && v.length - dot > 2) return;
+        v = v + key;
+      }
+      els.amount.value = v;
+    });
+
+    function busy(isBusy) {
+      els.chargeBtn.disabled = isBusy;
+      els.chargeBtn.style.display = isBusy ? "none" : "block";
+      els.cancelBtn.style.display = isBusy ? "block" : "none";
+      els.keypad.style.opacity = isBusy ? "0.4" : "1";
+      els.keypad.style.pointerEvents = isBusy ? "none" : "auto";
+    }
+
+    async function charge() {
+      const amount = parseFloat(els.amount.value);
+      if (!amount || amount <= 0) {
+        setStatus("err", "Enter an amount greater than 0.", false);
+        return;
+      }
+      busy(true);
+      setStatus("info", "Sending to reader…", true);
+      try {
+        const res = await fetch("/api/charge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: els.amount.value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not start the charge.");
+        activeReaderId = data.readerId;
+        setStatus("info", "Waiting for the customer to present their card…", true);
+        pollStatus(data.paymentIntentId, data.readerId);
+      } catch (err) {
+        busy(false);
+        setStatus("err", err.message, false);
+      }
+    }
+
+    function pollStatus(paymentIntentId, readerId) {
+      clearInterval(poller);
+      poller = setInterval(async () => {
+        try {
+          const url = `/api/status?paymentIntentId=${encodeURIComponent(paymentIntentId)}&readerId=${encodeURIComponent(readerId)}`;
+          const data = await (await fetch(url)).json();
+          if (data.state === "succeeded") {
+            clearInterval(poller);
+            busy(false);
+            setStatus("ok", "✓ " + (data.message || "Payment approved."), false);
+            els.amount.value = "";
+          } else if (data.state === "failed") {
+            clearInterval(poller);
+            busy(false);
+            setStatus("err", data.message || "The payment failed.", false);
+          }
+        } catch (e) {}
+      }, 1500);
+    }
+
+    async function cancel() {
+      clearInterval(poller);
+      try {
+        await fetch("/api/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ readerId: activeReaderId || undefined }),
+        });
+      } catch (e) {}
+      busy(false);
+      setStatus("info", "Payment canceled.", false);
+    }
+
+    els.chargeBtn.addEventListener("click", charge);
+    els.cancelBtn.addEventListener("click", cancel);
+    init();
+  </script>
+</body>
+</html>
